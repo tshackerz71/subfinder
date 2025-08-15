@@ -1,0 +1,105 @@
+#!/usr/bin/env python3
+# 🔍 Termux Subdomain Finder - 2025 Edition
+# Author: TS HACKER | Telegram: @teamsatved71
+
+import requests
+import re
+import sys
+import os
+from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
+
+# Colors
+R = "\033[91m"  # Red
+G = "\033[92m"  # Green
+Y = "\033[93m"  # Yellow
+B = "\033[94m"  # Blue
+C = "\033[96m"  # Cyan
+W = "\033[0m"   # Reset
+
+def banner():
+    os.system("clear")
+    print(f"""{C}
+   ╔═══════════════════════════════╗
+     🔍 Termux Subdomain Finder
+       By TS HACKER - 2025
+   ╚═══════════════════════════════╝
+{W}""")
+
+def fetch_crtsh(domain):
+    url = f"https://crt.sh/?q=%25.{domain}&output=json"
+    try:
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            subs = set()
+            for entry in data:
+                subs.add(entry["name_value"].lower())
+            return subs
+    except:
+        return set()
+    return set()
+
+def fetch_hackertarget(domain):
+    url = f"https://api.hackertarget.com/hostsearch/?q={domain}"
+    try:
+        r = requests.get(url, timeout=10)
+        if "error" not in r.text.lower():
+            return set(line.split(",")[0] for line in r.text.splitlines())
+    except:
+        return set()
+    return set()
+
+def fetch_threatcrowd(domain):
+    url = f"https://www.threatcrowd.org/searchApi/v2/domain/report/?domain={domain}"
+    try:
+        r = requests.get(url, timeout=10).json()
+        return set(r.get("subdomains", []))
+    except:
+        return set()
+
+def brute_force(domain):
+    common_subs = ["www", "mail", "ftp", "api", "dev", "test", "blog", "shop", "admin", "vpn", "secure", "m"]
+    found = set()
+    for sub in common_subs:
+        target = f"{sub}.{domain}"
+        try:
+            r = requests.get(f"http://{target}", timeout=2)
+            found.add(target)
+        except:
+            pass
+    return found
+
+def save_results(domain, subs):
+    filename = f"subdomains_{domain}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+    with open(filename, "w") as f:
+        for sub in sorted(subs):
+            f.write(sub + "\n")
+    print(f"{G}[+] Saved results to {filename}{W}")
+
+def main():
+    banner()
+    domain = input(f"{Y}[?] Enter domain (example.com): {W}").strip()
+    if not domain:
+        print(f"{R}[!] No domain provided.{W}")
+        sys.exit(1)
+
+    print(f"{B}[*] Gathering subdomains for: {domain}{W}")
+
+    all_subs = set()
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        results = list(executor.map(lambda f: f(domain), [fetch_crtsh, fetch_hackertarget, fetch_threatcrowd, brute_force]))
+        for res in results:
+            all_subs.update(res)
+
+    if all_subs:
+        print(f"{G}[+] Found {len(all_subs)} subdomains!{W}")
+        for sub in sorted(all_subs):
+            print(f" - {sub}")
+        save_results(domain, all_subs)
+    else:
+        print(f"{R}[!] No subdomains found.{W}")
+
+if __name__ == "__main__":
+    main()
